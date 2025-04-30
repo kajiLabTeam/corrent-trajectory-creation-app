@@ -1,35 +1,150 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+// App.tsx
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { saveAs } from "file-saver";
 
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+interface Point {
+  time: string;
+  x: number;
+  y: number;
 }
 
-export default App
+const App: React.FC = () => {
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [maxX, setMaxX] = useState(10);
+  const [maxY, setMaxY] = useState(10);
+  const [recording, setRecording] = useState(false);
+  const [data, setData] = useState<Point[]>([]);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [waiting, setWaiting] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [canvasScale, setCanvasScale] = useState(1);
+
+  const updateCanvasSize = useCallback(() => {
+    if (!image || !canvasRef.current) return;
+    const maxWidth = window.innerWidth * 0.9;
+    const maxHeight = window.innerHeight * 0.6;
+    const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
+    setCanvasScale(scale);
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    canvas.width = image.width * scale;
+    canvas.height = image.height * scale;
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    }
+  }, [image]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updateCanvasSize);
+    return () => window.removeEventListener("resize", updateCanvasSize);
+  }, [updateCanvasSize]);
+
+  useEffect(() => {
+    if (image) updateCanvasSize();
+  }, [image, updateCanvasSize]);
+
+  const scaleX = useMemo(() => (image ? maxX / (image.width * canvasScale) : 1), [image, maxX, canvasScale]);
+  const scaleY = useMemo(() => (image ? maxY / (image.height * canvasScale) : 1), [image, maxY, canvasScale]);
+
+  const downloadCSV = useCallback(() => {
+    if (!data.length) return;
+    const csv = ["time,x,y", ...data.map(d => `${d.time},${d.x},${d.y}`)].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    saveAs(blob, "walk_trace.csv");
+  }, [data]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (!recording && !waiting) {
+          setWaiting(true);
+          setTimeout(() => {
+            setData([]);
+            setStartTime(performance.now());
+            setRecording(true);
+            setWaiting(false);
+          }, 3000);
+        } else if (recording) {
+          setRecording(false);
+          downloadCSV();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [recording, waiting, downloadCSV]);
+
+  useEffect(() => {
+    if (!recording) return;
+    let animationFrame: number;
+    const update = () => {
+      if (startTime) {
+        setElapsedTime((performance.now() - startTime) / 1000);
+        animationFrame = requestAnimationFrame(update);
+      }
+    };
+    animationFrame = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [recording, startTime]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!recording || !startTime || !canvasRef.current) return;
+      const rect = canvasRef.current.getBoundingClientRect();
+      if (
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom
+      )
+        return;
+      const rawX = e.clientX - rect.left;
+      const rawY = e.clientY - rect.top;
+      const x = rawX * scaleX;
+      const y = (rect.height - rawY) * scaleY;
+      const time = ((performance.now() - startTime) / 1000).toFixed(2);
+      setData(prev => [...prev, { time, x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) }]);
+    };
+    if (recording) {
+      window.addEventListener("mousemove", handleMouseMove);
+      return () => window.removeEventListener("mousemove", handleMouseMove);
+    }
+  }, [recording, scaleX, scaleY, startTime]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const img = new Image();
+      img.onload = () => setImage(img);
+      img.src = URL.createObjectURL(file);
+    }
+  };
+
+  return (
+    <div className="p-4">
+      <h1 className="text-xl font-bold mb-4">歩行軌跡記録アプリ</h1>
+      <div className="mb-2">
+        <input type="file" accept="image/png" onChange={handleImageUpload} />
+      </div>
+      <div className="mb-2">
+        <label>最大X座標: </label>
+        <input type="number" value={maxX} onChange={(e) => setMaxX(parseFloat(e.target.value))} />
+        <label className="ml-4">最大Y座標: </label>
+        <input type="number" value={maxY} onChange={(e) => setMaxY(parseFloat(e.target.value))} />
+      </div>
+      <canvas
+        ref={canvasRef}
+        className="border mt-4"
+        style={{ display: image ? "block" : "none", width: image ? image.width * canvasScale : 0, height: image ? image.height * canvasScale : 0 }}
+      />
+      {waiting && <p className="mt-2 text-yellow-500">3秒後に開始します...</p>}
+      {recording && <p className="mt-2 text-green-600">記録中: {elapsedTime.toFixed(2)} 秒</p>}
+    </div>
+  );
+};
+
+export default App;
