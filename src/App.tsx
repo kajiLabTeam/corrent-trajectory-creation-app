@@ -66,7 +66,16 @@ const App: React.FC = () => {
           setWaiting(true);
           setTimeout(() => {
             setData([]);
+            setElapsedTime(0);
+            lastPointRef.current = null;
             setStartTime(performance.now());
+            if (canvasRef.current && image) {
+              const ctx = canvasRef.current.getContext("2d");
+              if (ctx) {
+                ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                ctx.drawImage(image, 0, 0, canvasRef.current.width, canvasRef.current.height);
+              }
+            }
             setRecording(true);
             setWaiting(false);
           }, 3000);
@@ -78,7 +87,7 @@ const App: React.FC = () => {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [recording, waiting, downloadCSV]);
+  }, [recording, waiting, downloadCSV, image]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -92,14 +101,11 @@ const App: React.FC = () => {
     if (!recording || !canvasRef.current || !startTime) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    let animationFrame: number;
+    let intervalId: number;
 
-    const record = () => {
+    intervalId = window.setInterval(() => {
       const mousePos = mousePositionRef.current;
-      if (!mousePos) {
-        animationFrame = requestAnimationFrame(record);
-        return;
-      }
+      if (!mousePos) return;
       const rect = canvas.getBoundingClientRect();
       const mouseX = mousePos.x;
       const mouseY = mousePos.y;
@@ -132,10 +138,9 @@ const App: React.FC = () => {
         });
       }
       setElapsedTime((performance.now() - startTime) / 1000);
-      animationFrame = requestAnimationFrame(record);
-    };
-    animationFrame = requestAnimationFrame(record);
-    return () => cancelAnimationFrame(animationFrame);
+    }, 1000 / 60);
+
+    return () => clearInterval(intervalId);
   }, [recording, scaleX, scaleY, startTime]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
