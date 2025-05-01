@@ -168,6 +168,7 @@ const App: React.FC = () => {
         <label className="ml-4">最大Y座標: </label>
         <input type="number" value={maxY} onChange={(e) => setMaxY(parseFloat(e.target.value))} />
       </div>
+      <p>スペースを押して計測開始</p>
       {waiting && <p className="mt-2 text-yellow-500">3秒後に開始します...</p>}
       {recording && <p className="mt-2 text-green-600">記録中: {elapsedTime.toFixed(2)} 秒</p>}
       <canvas
