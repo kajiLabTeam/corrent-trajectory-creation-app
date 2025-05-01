@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { saveAs } from "file-saver";
 
 interface Point {
-  time: string;
+  time: number;
   x: number;
   y: number;
 }
@@ -19,6 +19,8 @@ const App: React.FC = () => {
   const [waiting, setWaiting] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvasScale, setCanvasScale] = useState(1);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const mousePositionRef = useRef<{ x: number; y: number } | null>(null);
 
   const updateCanvasSize = useCallback(() => {
     if (!image || !canvasRef.current) return;
@@ -28,9 +30,9 @@ const App: React.FC = () => {
     setCanvasScale(scale);
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
     canvas.width = image.width * scale;
     canvas.height = image.height * scale;
+    const ctx = canvas.getContext("2d");
     if (ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -79,40 +81,61 @@ const App: React.FC = () => {
   }, [recording, waiting, downloadCSV]);
 
   useEffect(() => {
-    if (!recording) return;
-    let animationFrame: number;
-    const update = () => {
-      if (startTime) {
-        setElapsedTime((performance.now() - startTime) / 1000);
-        animationFrame = requestAnimationFrame(update);
-      }
+    const handleMouseMove = (e: MouseEvent) => {
+      mousePositionRef.current = { x: e.clientX, y: e.clientY };
     };
-    animationFrame = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(animationFrame);
-  }, [recording, startTime]);
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!recording || !startTime || !canvasRef.current) return;
-      const rect = canvasRef.current.getBoundingClientRect();
-      if (
-        e.clientX < rect.left ||
-        e.clientX > rect.right ||
-        e.clientY < rect.top ||
-        e.clientY > rect.bottom
-      )
+    if (!recording || !canvasRef.current || !startTime) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    let animationFrame: number;
+
+    const record = () => {
+      const mousePos = mousePositionRef.current;
+      if (!mousePos) {
+        animationFrame = requestAnimationFrame(record);
         return;
-      const rawX = e.clientX - rect.left;
-      const rawY = e.clientY - rect.top;
-      const x = rawX * scaleX;
-      const y = (rect.height - rawY) * scaleY;
-      const time = ((performance.now() - startTime) / 1000).toFixed(2);
-      setData(prev => [...prev, { time, x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) }]);
+      }
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = mousePos.x;
+      const mouseY = mousePos.y;
+
+      if (
+        mouseX >= rect.left &&
+        mouseX <= rect.right &&
+        mouseY >= rect.top &&
+        mouseY <= rect.bottom
+      ) {
+        const rawX = mouseX - rect.left;
+        const rawY = mouseY - rect.top;
+        const x = rawX * scaleX;
+        const y = (rect.height - rawY) * scaleY;
+        const now = performance.now();
+        const time = Math.round(now - startTime);
+
+        setData(prev => {
+          const updated = [...prev, { time, x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) }];
+          if (ctx && lastPointRef.current) {
+            ctx.beginPath();
+            ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+            ctx.lineTo(rawX, rawY);
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+          lastPointRef.current = { x: rawX, y: rawY };
+          return updated;
+        });
+      }
+      setElapsedTime((performance.now() - startTime) / 1000);
+      animationFrame = requestAnimationFrame(record);
     };
-    if (recording) {
-      window.addEventListener("mousemove", handleMouseMove);
-      return () => window.removeEventListener("mousemove", handleMouseMove);
-    }
+    animationFrame = requestAnimationFrame(record);
+    return () => cancelAnimationFrame(animationFrame);
   }, [recording, scaleX, scaleY, startTime]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
