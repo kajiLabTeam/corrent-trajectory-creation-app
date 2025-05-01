@@ -142,7 +142,11 @@ const App: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       const img = new Image();
-      img.onload = () => setImage(img);
+      img.onload = () => {
+        setImage(img);
+        setMaxX(img.width);
+        setMaxY(img.height);
+      };
       img.src = URL.createObjectURL(file);
     }
   };
@@ -159,13 +163,13 @@ const App: React.FC = () => {
         <label className="ml-4">最大Y座標: </label>
         <input type="number" value={maxY} onChange={(e) => setMaxY(parseFloat(e.target.value))} />
       </div>
+      {waiting && <p className="mt-2 text-yellow-500">3秒後に開始します...</p>}
+      {recording && <p className="mt-2 text-green-600">記録中: {elapsedTime.toFixed(2)} 秒</p>}
       <canvas
         ref={canvasRef}
         className="border mt-4"
         style={{ display: image ? "block" : "none", width: image ? image.width * canvasScale : 0, height: image ? image.height * canvasScale : 0 }}
       />
-      {waiting && <p className="mt-2 text-yellow-500">3秒後に開始します...</p>}
-      {recording && <p className="mt-2 text-green-600">記録中: {elapsedTime.toFixed(2)} 秒</p>}
     </div>
   );
 };
