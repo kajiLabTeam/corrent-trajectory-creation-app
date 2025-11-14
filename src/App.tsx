@@ -121,10 +121,14 @@ const App: React.FC = () => {
         const x = rawX * scaleX;
         const y = (rect.height - rawY) * scaleY;
         const now = performance.now();
+        console.log(now - startTime, (now - startTime) / 1000);
         const time = Math.round(now - startTime);
+        const timeInSeconds = time / 1000; // msをsに変換
+        //console.log(`Time: ${time} ms,Time: ${timeInSeconds} s, X: ${x}, Y: ${y}`);
 
         setData(prev => {
-          const updated = [...prev, { time, x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) }];
+          // /100をするとm単位になる
+          const updated = [...prev, { time: timeInSeconds, x: parseFloat(((x / 100).toFixed(2)).toString()), y: parseFloat(((y / 100).toFixed(2)).toString()) }];
           if (ctx && lastPointRef.current) {
             ctx.beginPath();
             ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
@@ -138,7 +142,7 @@ const App: React.FC = () => {
         });
       }
       setElapsedTime((performance.now() - startTime) / 1000);
-    }, 1000 / 60);
+    }, 1000 / 100);
 
     return () => clearInterval(intervalId);
   }, [recording, scaleX, scaleY, startTime]);
