@@ -119,7 +119,7 @@ const App: React.FC = () => {
         const rawX = mouseX - rect.left;
         const rawY = mouseY - rect.top;
         const x = rawX * scaleX;
-        const y = (rect.height - rawY) * scaleY;
+        const y = rawY * scaleY;
         const now = performance.now();
         console.log(now - startTime, (now - startTime) / 1000);
         const time = Math.round(now - startTime);
