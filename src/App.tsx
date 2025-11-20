@@ -142,7 +142,7 @@ const App: React.FC = () => {
         });
       }
       setElapsedTime((performance.now() - startTime) / 1000);
-    }, 1000 / 100);
+    }, 1000 / 4);
 
     return () => clearInterval(intervalId);
   }, [recording, scaleX, scaleY, startTime]);
