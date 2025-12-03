@@ -21,6 +21,8 @@ const App: React.FC = () => {
   const [canvasScale, setCanvasScale] = useState(1);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const mousePositionRef = useRef<{ x: number; y: number } | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   const updateCanvasSize = useCallback(() => {
     if (!image || !canvasRef.current) return;
@@ -58,6 +60,45 @@ const App: React.FC = () => {
     saveAs(blob, "walk_trace.csv");
   }, [data]);
 
+  const startRecording = useCallback(() => {
+    if (!canvasRef.current) return;
+    
+    recordedChunksRef.current = [];
+    const stream = canvasRef.current.captureStream(30); // 30fps
+    const mediaRecorder = new MediaRecorder(stream, {
+      mimeType: "video/webm;codecs=vp9",
+    });
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        recordedChunksRef.current.push(event.data);
+      }
+    };
+
+    mediaRecorder.onstart = () => {
+      console.log("録画が実際に開始されました！");
+      setRecording(true); 
+    }
+
+    mediaRecorder.start();
+    mediaRecorderRef.current = mediaRecorder;
+  }, []);
+
+  //録画停止
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      const mediaRecorder = mediaRecorderRef.current;
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+        saveAs(blob, "canvas_recording.webm");
+        recordedChunksRef.current = [];
+      };
+
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space") {
@@ -76,18 +117,19 @@ const App: React.FC = () => {
                 ctx.drawImage(image, 0, 0, canvasRef.current.width, canvasRef.current.height);
               }
             }
-            setRecording(true);
+            startRecording();
             setWaiting(false);
           }, 3000);
         } else if (recording) {
           setRecording(false);
+          stopRecording(); // 録画停止
           downloadCSV();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [recording, waiting, downloadCSV, image]);
+  }, [recording, waiting, downloadCSV, image, startRecording, stopRecording]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -101,9 +143,8 @@ const App: React.FC = () => {
     if (!recording || !canvasRef.current || !startTime) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    let intervalId: number;
 
-    intervalId = window.setInterval(() => {
+    const intervalId = window.setInterval(() => {
       const mousePos = mousePositionRef.current;
       if (!mousePos) return;
       const rect = canvas.getBoundingClientRect();
