@@ -1,6 +1,7 @@
 // App.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { saveAs } from "file-saver";
+import useCanvasRecorder from "./hooks/useCanvasRecorder";
 
 interface Point {
   time: number;
@@ -21,8 +22,8 @@ const App: React.FC = () => {
   const [canvasScale, setCanvasScale] = useState(1);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const mousePositionRef = useRef<{ x: number; y: number } | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
+  // MediaRecorder logic extracted into hook
+  const { startRecording, stopRecording } = useCanvasRecorder(canvasRef, setRecording);
 
   const updateCanvasSize = useCallback(() => {
     if (!image || !canvasRef.current) return;
@@ -60,46 +61,6 @@ const App: React.FC = () => {
     saveAs(blob, "walk_trace.csv");
   }, [data]);
 
-  const startRecording = useCallback(() => {
-    if (!canvasRef.current) return;
-    
-    recordedChunksRef.current = [];
-    const stream = canvasRef.current.captureStream(30); // 30fps
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: "video/webm;codecs=vp9",
-    });
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        recordedChunksRef.current.push(event.data);
-      }
-    };
-
-    mediaRecorder.onstart = () => {
-      console.log("録画が開始されました！");
-      setRecording(true); 
-    }
-
-    mediaRecorder.start();
-    mediaRecorderRef.current = mediaRecorder;
-  }, []);
-
-  //録画停止
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      const mediaRecorder = mediaRecorderRef.current;
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
-        saveAs(blob, "canvas_recording.webm");
-        recordedChunksRef.current = [];
-        setRecording(false);
-        console.log("録画が停止され、ファイルが保存されました！");
-      };
-
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current = null;
-    }
-  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
