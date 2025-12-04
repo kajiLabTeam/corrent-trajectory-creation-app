@@ -22,7 +22,6 @@ const App: React.FC = () => {
   const [canvasScale, setCanvasScale] = useState(1);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const mousePositionRef = useRef<{ x: number; y: number } | null>(null);
-  // MediaRecorder logic extracted into hook
   const { startRecording, stopRecording } = useCanvasRecorder(canvasRef, setRecording);
 
   const updateCanvasSize = useCallback(() => {
@@ -84,7 +83,7 @@ const App: React.FC = () => {
             setWaiting(false);
           }, 3000);
         } else if (recording) {
-          stopRecording(); // 録画停止
+          stopRecording();
           downloadCSV();
         }
       }
