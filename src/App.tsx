@@ -1,6 +1,7 @@
 // App.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { saveAs } from "file-saver";
+import useCanvasRecorder from "./hooks/useCanvasRecorder";
 
 interface Point {
   time: number;
@@ -21,6 +22,7 @@ const App: React.FC = () => {
   const [canvasScale, setCanvasScale] = useState(1);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const mousePositionRef = useRef<{ x: number; y: number } | null>(null);
+  const { startRecording, stopRecording } = useCanvasRecorder(canvasRef, setRecording);
 
   const updateCanvasSize = useCallback(() => {
     if (!image || !canvasRef.current) return;
@@ -58,6 +60,7 @@ const App: React.FC = () => {
     saveAs(blob, "walk_trace.csv");
   }, [data]);
 
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space") {
@@ -76,18 +79,18 @@ const App: React.FC = () => {
                 ctx.drawImage(image, 0, 0, canvasRef.current.width, canvasRef.current.height);
               }
             }
-            setRecording(true);
+            startRecording();
             setWaiting(false);
           }, 3000);
         } else if (recording) {
-          setRecording(false);
+          stopRecording();
           downloadCSV();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [recording, waiting, downloadCSV, image]);
+  }, [recording, waiting, downloadCSV, image, startRecording, stopRecording]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -101,9 +104,8 @@ const App: React.FC = () => {
     if (!recording || !canvasRef.current || !startTime) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    let intervalId: number;
 
-    intervalId = window.setInterval(() => {
+    const intervalId = window.setInterval(() => {
       const mousePos = mousePositionRef.current;
       if (!mousePos) return;
       const rect = canvas.getBoundingClientRect();
