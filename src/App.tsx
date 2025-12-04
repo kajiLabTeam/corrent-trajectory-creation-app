@@ -76,7 +76,7 @@ const App: React.FC = () => {
     };
 
     mediaRecorder.onstart = () => {
-      console.log("録画が実際に開始されました！");
+      console.log("録画が開始されました！");
       setRecording(true); 
     }
 
@@ -92,6 +92,8 @@ const App: React.FC = () => {
         const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
         saveAs(blob, "canvas_recording.webm");
         recordedChunksRef.current = [];
+        setRecording(false);
+        console.log("録画が停止され、ファイルが保存されました！");
       };
 
       mediaRecorderRef.current.stop();
@@ -121,7 +123,6 @@ const App: React.FC = () => {
             setWaiting(false);
           }, 3000);
         } else if (recording) {
-          setRecording(false);
           stopRecording(); // 録画停止
           downloadCSV();
         }
